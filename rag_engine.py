@@ -1,23 +1,26 @@
 import os
-from typing import List
+from typing import List, Dict, Any
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.documents import Document
 from schemas import SystemDynamicsParameterSchema, RAGExtractionResponse
 
 class ClinicalRAGManager:
     """
-    Manages vector store indexing and schema-constrained extraction
-    using local HuggingFace embeddings + Claude Sonnet.
+    RAG MAnagement Engine using LangChain, Chroma vector store, and structured Pydantic parameter etraction for System Dynamics modeling.
+    Grounded in 2010 UK health baseline (BHF, NICE NG238, NHS QOF)
     """
-    def __init__(self, vector_db_path: str = "./chroma_db"):
+    def __init__(self, persist_directory: str = "/chorma_db"):
+        self.persist_directory = persist_directory
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
         self.vector_store = Chroma(
-            persist_directory=vector_db_path, 
-            embedding_function=self.embeddings
+           collection_name="uk_clinical_benchmarks_2010",
+           embedding_function=self.embeddings,
+              persist_directory=self.persist_directory
         )
         # Keeps the model that works on your account tier
         self.llm = ChatAnthropic(
