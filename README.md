@@ -1,37 +1,123 @@
-# CVD-Agent-Based-Model
+# AI-Assisted System Dynamics Modeling for Cardiovascular Disease (2010–2020 Retrospective Validation)
 
-This repository contains the implementation of an agent-based-model of behaviour spread and its impact on cardiovascular disease developed by the project "Modelling the spread of multiple behavioural risk factors for cardiovascular disease in social networks using an agent-based model", N. Griffiths, O. Oyebode and J. Archbold, funded by MRC as part of the Population Health Agent-based Simulation nEtwork (PHASE).
+This repository contains an end-to-end framework that combines **Retrieval-Augmented Generation (RAG)** with **Continuous System Dynamics (PySD / ODE Solvers)** to simulate population-level Cardiovascular Disease (CVD) prevalence and policy interventions in the United Kingdom.
 
-The model is described in:
+Rather than relying on ungrounded LLM code generation, this system extracts structured epidemiological parameters from verified UK public health databases, validates parameter types via Pydantic schemas, verifies code syntax via Abstract Syntax Tree (AST) static analysis, and executes continuous differential equations over a 10-year retrospective horizon (2010–2020) for empirical ground-truth validation.
 
-> [J. Archbold, S. Clohessy, D. Herath, N. Griffiths and O. Oyebode, An Agent-Based Model of the Spread of Behavioural Risk-Factors for Cardiovascular Disease in City-Scale Populations, PLoS ONE, 19(5): e0303051, 2024.](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0303051)
+---
 
-If you use our model in your own publications we would appreciate you citing our paper. There is also a webinar describing the model here (see 58:40 onwards): https://www.youtube.com/watch?v=lD6Y1LcjxXE
+## Key Features & Scientific Architecture
 
-The code has been tested on Mac and Linux using Python3, but is untested on Windows. The following directory structure is assumed (note that you may need to manually create the results and plots directories):
+1. **Retrospective Ground-Truth Validation (2010–2020):**
+   * Establishes baseline population metrics at $t=0$ (2010) using BHF Statistics, NHS Digital QOF, and NICE NG238 guidelines.
+   * Simulates disease trajectories to $t=10$ (2020), enabling direct empirical error scoring ($\text{MAE}$ and $\text{RMSE}$) against recorded NHS outcomes.
 
-* documentation/ - Contains more detail of the algorithms/methods used in the simulation. More details can be found in the paper mentioned above.
-* scenarios/ - Contains the configurations which can be used to run the simulation. By default this contains two example sub-directories, namely baseline_workplaceContacts4 and baseline_workplaceContacts21, with mean workplace close contact sizes of 4 and 21 respectively. These configurations are calibrated to UK data as described in the paper mentioned above. Additional experiment can be added to this directory.
-* results/ - The simulation stores results here. Two files are stored directly by the simulator, namely <config>_all.pkl and <config>_latest.csv which contain summary data for all runs of a given config (i.e., latest run results are appended) and the latest run respectively. To generate a csv of summary data for all runs use process_results.py with a .pkl filename as a argument, which will create <config>_all.pkl.
-* plots/ - network.py, if run with the --plots argument, can generate a plot of the age distribution and friendship degree distribution for the given configuration, with pdf plots of these stored in this folder. Note that for the friendship degree distribution some lines in network.py need uncommenting (they are currently commented to reduce memory overhead when the distribution plot is not needed).
+2. **Grounded RAG Retrieval (`rag_engine.py`):**
+   * Utilizes `langchain-chroma` and dense HuggingFace embeddings (`all-MiniLM-L6-v2`) for semantic chunk retrieval.
+   * Employs `RecursiveCharacterTextSplitter` chunking to extract context-specific relative risk multipliers and baseline incidence rates.
 
-To see the possible arguments run spread.py with the -h argument:
+3. **Guaranteed Execution & Safety Layer (`ast_parser.py`):**
+   * Enforces type-safe parameter bounds via `Pydantic` (`SystemDynamicsParameterSchema`).
+   * Performs static AST validation to verify variable dependency trees, prevent execution halts, and block untrusted code execution prior to ODE execution.
+
+4. **Continuous System Dynamics Engine (`cvd_sd_model.py`):**
+   * Implements continuous population stock-flow differential equations ($S \rightarrow CVD$) over a 10-year period.
+   * Evaluates complex multi-variable policy levers (e.g., combined smoking cessation and hypertension management).
+
+---
+
+## Pipeline Overview
 
 ```
-python3 spread.py -h
+[ Public Health Query / Policy Scenario ]
+                   │
+                   ▼
+[ Clinical RAG Engine (ChromaDB + 2010 UK Corpora) ]
+                   │
+                   ▼
+[ Parameter Calibration & Pydantic Schema Validation ]
+                   │
+                   ▼
+[ Static AST Safety & Structural Verification ]
+                   │
+                   ▼
+[ Continuous PySD ODE Solver (2010–2020 Trajectory) ]
+                   │
+                   ▼
+[ Empirical Benchmarking: MAE, RMSE & Deviation Metrics ]
 ```
-which should give the following output:
+
+---
+
+## Directory Structure
+
+```text
+.
+├── README.md                          # Project documentation
+├── requirements.txt                   # Python dependencies
+├── rag_engine.py                      # LangChain Chroma RAG pipeline & retriever
+├── ast_parser.py                      # AST static analysis and code safety checker
+├── schemas.py                         # Pydantic schemas for parameter extraction
+├── cvd_sd_model.py                    # PySD System Dynamics model formulation
+├── pipeline.py                        # Core pipeline orchestrator
+├── experiments.py                     # Experimental harness for multi-scenario testing
+├── output/
+│   ├── batch_experiments_summary.csv  # Empirical validation metrics (MAE / RMSE)
+│   └── cvd_simulation_trajectories.png# Trajectory plots across interventions
+└── chroma_db/                         # Local vector database storage
 ```
-usage: spread.py [-h] [-n SIZE] [-t TIMESTEP] parameter_folder
 
-spread - create a network and run spread for CVD simulation.
+---
 
-positional arguments:
-  parameter_folder      folder of csv files with parameter specifications
+## Quickstart & Installation
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -n SIZE, --size SIZE  target population size
-  -t TIMESTEP, --timestep TIMESTEP
-                        select number of timesteps for simulation
+### 1. Prerequisites
+* Python 3.10+
+* Virtual Environment (recommended)
+
+### 2. Clone Repository & Install Dependencies
+```bash
+git clone https://github.com/your-username/cvd-system-dynamics-rag.git
+cd cvd-system-dynamics-rag
+
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+pip install -r requirements.txt
 ```
+
+### 3. Set Up Environment Variables
+Create a `.env` file or export your API keys in your shell:
+```bash
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
+# Optional for multi-model comparisons:
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+---
+
+## Running Experiments
+
+To populate the vector store, calibrate parameters, run the ODE solver, and calculate empirical validation metrics:
+
+```bash
+python experiments.py
+```
+
+### Outputs Generated:
+* **`output/batch_experiments_summary.csv`**: Contains baseline prevalence, simulated 2020 prevalence, $\text{MAE}$, and $\text{RMSE}$ scores for each intervention scenario.
+* **`output/cvd_simulation_trajectories.png`**: Multi-curve visual trajectory comparison of 2010–2020 disease prevalence across scenarios.
+
+---
+
+## Experimental Scenarios
+
+1. **`EXP_01_Smoking_Cessation`**: Evaluates targeted community smoking reduction programs on 10-year CVD trajectory.
+2. **`EXP_02_Hypertension_Control`**: Models systematic blood pressure screening and clinical management.
+3. **`EXP_03_Combined_Intervention`**: Simulates synergistic multi-variable public health policies.
+
+---
+
+## License
+
+Distributed under the MIT License. See `LICENSE` for more information.
